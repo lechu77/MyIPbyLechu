@@ -3,6 +3,7 @@ export async function onRequest({ request, next }) {
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
   const ua = (request.headers.get('User-Agent') || '').toLowerCase();
   const isCurl = ua.includes('curl') || ua.includes('wget') || ua.includes('httpie');
+  const renderTime = Date.now().toString();
 
   // 1. Direct IP endpoint (fastest)
   if (url.pathname === '/ip') {
@@ -10,7 +11,8 @@ export async function onRequest({ request, next }) {
       headers: { 
         'content-type': 'text/plain;charset=UTF-8',
         'cache-control': 'no-store, no-cache, must-revalidate',
-        'pragma': 'no-cache'
+        'pragma': 'no-cache',
+        'x-render-time': renderTime
       }
     });
   }
@@ -48,7 +50,8 @@ export async function onRequest({ request, next }) {
       headers: { 
         'content-type': 'application/json;charset=UTF-8',
         'cache-control': 'no-store, no-cache, must-revalidate',
-        'pragma': 'no-cache'
+        'pragma': 'no-cache',
+        'x-render-time': renderTime
       }
     });
   }
@@ -66,7 +69,8 @@ Loc:     ${geo.lat},${geo.lon}
       headers: { 
         'content-type': 'text/plain;charset=UTF-8',
         'cache-control': 'no-store, no-cache, must-revalidate',
-        'pragma': 'no-cache'
+        'pragma': 'no-cache',
+        'x-render-time': renderTime
       }
     });
   }
@@ -85,7 +89,8 @@ var __CF_GEO=${JSON.stringify(geo)};
       ...Object.fromEntries(res.headers), 
       'content-type': 'text/html;charset=UTF-8',
       'cache-control': 'no-store, no-cache, must-revalidate',
-      'pragma': 'no-cache'
+      'pragma': 'no-cache',
+      'x-render-time': renderTime
     }
   });
 }
