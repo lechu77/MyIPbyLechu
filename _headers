@@ -3,4 +3,4 @@
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
   Permissions-Policy: geolocation=(), camera=(), microphone=()
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.ipify.org
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'unsafe-inline' https://unpkg.com; img-src https://*.tile.openstreetmap.org data:; connect-src https://ipapi.co https://api.ipify.org; font-src 'none'

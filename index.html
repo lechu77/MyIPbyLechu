@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ip.lechu.dev</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
     :root {
       --bg: #0a0a0f;
@@ -25,6 +26,7 @@
       --border: #007a3d44;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       background: var(--bg);
       color: var(--fg);
@@ -33,29 +35,38 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      padding: 4rem 1rem 3rem;
+      gap: 1.5rem;
       transition: background .3s, color .3s;
     }
-    .container {
-      text-align: center;
-      padding: 2rem;
+
+    /* ── central column ── */
+    .card {
+      width: 100%;
+      max-width: 720px;
     }
+
+    /* ── IP block ── */
     .label {
-      font-size: .75rem;
+      font-size: .7rem;
       letter-spacing: .3em;
       color: var(--fg2);
       text-shadow: var(--glow2);
       text-transform: uppercase;
-      margin-bottom: 1rem;
+      margin-bottom: .75rem;
+      text-align: center;
     }
     .ip {
-      font-size: clamp(2rem, 8vw, 4.5rem);
+      display: block;
+      width: 100%;
+      font-size: clamp(1.8rem, 7vw, 4rem);
       font-weight: bold;
       letter-spacing: .05em;
+      text-align: center;
       text-shadow: var(--glow);
       border: 1px solid var(--border);
       background: var(--dim);
-      padding: .6em 1.2em;
+      padding: .6em 1em;
       border-radius: 4px;
       cursor: pointer;
       user-select: all;
@@ -63,14 +74,66 @@
     }
     .ip:hover { text-shadow: var(--glow), 0 0 60px var(--fg); }
     .copy-hint {
-      font-size: .7rem;
+      font-size: .65rem;
       color: var(--fg2);
-      margin-top: .6rem;
+      margin-top: .5rem;
       letter-spacing: .15em;
       opacity: .6;
       height: 1em;
+      text-align: center;
       transition: opacity .3s;
     }
+
+    /* ── unified widget grid ── */
+    .widgets {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .5rem;
+    }
+    @media (max-width: 480px) {
+      .widgets { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .widget {
+      background: var(--dim);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: .55rem .8rem;
+    }
+    .widget .key {
+      font-size: .58rem;
+      letter-spacing: .2em;
+      color: var(--fg2);
+      text-transform: uppercase;
+    }
+    .widget .val {
+      font-size: .9rem;
+      margin-top: .2rem;
+      text-shadow: var(--glow2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* section divider inside grid */
+    .divider {
+      grid-column: 1 / -1;
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: .25rem 0;
+    }
+
+    /* ── map ── */
+    #map {
+      width: 100%;
+      height: clamp(200px, 35vw, 300px);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      filter: saturate(.7) brightness(.85);
+    }
+    [data-theme="light"] #map { filter: none; }
+
+    /* ── toggle button ── */
     .toggle {
       position: fixed;
       top: 1rem;
@@ -79,50 +142,126 @@
       border: 1px solid var(--border);
       color: var(--fg);
       font-family: var(--font);
-      font-size: .75rem;
+      font-size: .7rem;
       letter-spacing: .1em;
-      padding: .4em .8em;
+      padding: .35em .7em;
       cursor: pointer;
       border-radius: 3px;
       text-shadow: var(--glow2);
       transition: all .2s;
     }
     .toggle:hover { background: var(--dim); }
+
     footer {
-      position: fixed;
-      bottom: 1rem;
-      font-size: .65rem;
+      font-size: .6rem;
       color: var(--fg2);
-      opacity: .4;
+      opacity: .35;
       letter-spacing: .2em;
+      margin-top: auto;
+      padding-top: 1rem;
     }
   </style>
 </head>
 <body>
   <button class="toggle" onclick="toggleTheme()" id="themeBtn">[ LIGHT ]</button>
-  <div class="container">
+
+  <div class="card">
     <div class="label">// your ip address</div>
     <div class="ip" id="ip" onclick="copyIP()" title="click to copy">...</div>
     <div class="copy-hint" id="hint">&nbsp;</div>
   </div>
+
+  <div class="card widgets" id="widgets"></div>
+
+  <div class="card" id="map"></div>
+
   <footer>ip.lechu.dev</footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // IP is injected by the Cloudflare Worker as a global variable
-    // Falls back to a public API if running locally
-    function init() {
-      if (typeof __CF_IP !== 'undefined') {
-        document.getElementById('ip').textContent = __CF_IP;
-      } else {
-        fetch('https://api.ipify.org?format=json')
-          .then(r => r.json())
-          .then(d => document.getElementById('ip').textContent = d.ip)
-          .catch(() => document.getElementById('ip').textContent = '?.?.?.?');
+    var __CF_IP, __CF_GEO;
+
+    async function init() {
+      let ip = __CF_IP, geo = __CF_GEO;
+      if (!ip) {
+        try {
+          const d = await fetch('https://ipapi.co/json/').then(r => r.json());
+          ip  = d.ip;
+          geo = { country: d.country_code, city: d.city, region: d.region,
+                  lat: d.latitude, lon: d.longitude, tz: d.timezone,
+                  asn: d.asn, org: d.org };
+        } catch { ip = '?.?.?.?'; geo = {}; }
       }
+      document.getElementById('ip').textContent = ip;
+      renderWidgets(geo);
+      renderMap(geo);
+    }
+
+    function widget(key, val) {
+      return `<div class="widget"><div class="key">${key}</div><div class="val" title="${val}">${val}</div></div>`;
+    }
+
+    function renderWidgets(g) {
+      const ua = navigator.userAgent;
+      const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const tzVal = g?.tz
+        ? (localTz === g.tz ? `✓ ${localTz}` : `⚠ ${localTz}`)
+        : localTz;
+
+      let os = 'Unknown', browser = 'Unknown';
+      if      (/Android/.test(ua))    os = 'Android';
+      else if (/iPhone|iPad/.test(ua)) os = 'iOS';
+      else if (/Windows NT/.test(ua)) os = 'Windows';
+      else if (/Mac OS X/.test(ua))   os = 'macOS';
+      else if (/Linux/.test(ua))      os = 'Linux';
+
+      if      (/Edg\//.test(ua))                          browser = 'Edge';
+      else if (/Chrome\//.test(ua))                       browser = 'Chrome';
+      else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+      else if (/Firefox\//.test(ua))                      browser = 'Firefox';
+
+      const flag = g?.country
+        ? String.fromCodePoint(...[...g.country.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))
+        : '';
+      const countryLabel = flag && g?.country_name ? `${flag} ${g.country_name}`
+                         : flag ? `${flag} ${g.country}` : g?.country;
+
+      const geoFields = [
+        ['country',  countryLabel],
+        ['city',     g?.city],
+        ['timezone', g?.tz],
+        ['org',      g?.org],
+      ].filter(([,v]) => v);
+
+      const conn = navigator.connection;
+      const connVal = conn ? (conn.effectiveType || conn.type || null) : null;
+
+      const clientFields = [
+        ['browser',    browser],
+        ['os',         os],
+        ['local tz',   tzVal],
+        ['connection', connVal],
+        ['language',   navigator.language],
+      ].filter(([,v]) => v);
+
+      const html = geoFields.map(([k,v]) => widget(k, v)).join('')
+        + '<hr class="divider">'
+        + clientFields.map(([k,v]) => widget(k, v)).join('');
+
+      document.getElementById('widgets').innerHTML = html;
+    }
+
+    function renderMap(g) {
+      if (!g?.lat || !g?.lon) { document.getElementById('map').style.display = 'none'; return; }
+      const map = L.map('map', { zoomControl: true, attributionControl: false })
+                   .setView([g.lat, g.lon], 6);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      L.circleMarker([g.lat, g.lon], { radius: 8, color: '#00ff9f', fillColor: '#00ff9f', fillOpacity: .8 })
+       .addTo(map);
     }
 
     function copyIP() {
-      const ip = document.getElementById('ip').textContent;
-      navigator.clipboard.writeText(ip).then(() => {
+      navigator.clipboard.writeText(document.getElementById('ip').textContent).then(() => {
         const hint = document.getElementById('hint');
         hint.textContent = '// copied!';
         hint.style.opacity = '1';
@@ -138,7 +277,6 @@
       localStorage.setItem('theme', html.dataset.theme);
     }
 
-    // Restore saved theme
     const saved = localStorage.getItem('theme');
     if (saved) {
       document.documentElement.dataset.theme = saved;
