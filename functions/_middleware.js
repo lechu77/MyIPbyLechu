@@ -1,10 +1,10 @@
 export async function onRequest({ request, next }) {
   const url = new URL(request.url);
   const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
-  const ua = request.headers.get('User-Agent') || '';
-  const isCurl = ua.includes('curl');
+  const ua = (request.headers.get('User-Agent') || '').toLowerCase();
+  const isCurl = ua.includes('curl') || ua.includes('wget') || ua.includes('httpie');
 
-  // 1. Handle direct data endpoints
+  // 1. Direct IP endpoint (fastest)
   if (url.pathname === '/ip') {
     return new Response(ip + '\n', {
       headers: { 
@@ -42,6 +42,7 @@ export async function onRequest({ request, next }) {
     org:     cf.asOrganization ?? 'Internet Provider',
   };
 
+  // 2. Data endpoints
   if (url.pathname === '/geo') {
     return new Response(JSON.stringify(geo, null, 2) + '\n', {
       headers: { 
@@ -52,8 +53,8 @@ export async function onRequest({ request, next }) {
     });
   }
 
-  // 2. Handle curl for root path
-  if (isCurl && url.pathname === '/') {
+  // 3. Handle curl/CLI for root path
+  if (isCurl && (url.pathname === '/' || url.pathname === '')) {
     const text = `IP:      ${geo.ip}
 Country: ${geo.country_name} (${geo.country})
 City:    ${geo.city}
@@ -70,11 +71,10 @@ Loc:     ${geo.lat},${geo.lon}
     });
   }
 
-  // 3. Regular HTML response with injection
+  // 4. Regular HTML response with injection
   const res  = await next();
   const html = await res.text();
   
-  // Also inject country_name for the client-side renderer
   const injected = html.replace('<script>', `<script>
 var __CF_IP="${ip}";
 var __CF_GEO=${JSON.stringify(geo)};
