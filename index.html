@@ -183,16 +183,31 @@
 
     async function init() {
       let ip = __CF_IP, geo = __CF_GEO;
-      if (!ip) {
+      
+      // If we don't have good geo data from the server, or it's generic 'XX', fetch from API
+      if (!geo || geo.country === 'XX' || !geo.city || geo.city === 'Remote City') {
         try {
           const d = await fetch('https://ipapi.co/json/').then(r => r.json());
-          ip  = d.ip;
-          geo = { country: d.country_code, city: d.city, region: d.region,
-                  lat: d.latitude, lon: d.longitude, tz: d.timezone,
-                  asn: d.asn, org: d.org };
-        } catch { ip = '?.?.?.?'; geo = {}; }
+          ip  = ip || d.ip;
+          geo = { 
+            country: d.country_code || (geo?.country !== 'XX' ? geo?.country : 'XX'), 
+            country_name: d.country_name || (geo?.country_name !== 'Earth' ? geo?.country_name : 'Earth'),
+            city: d.city || 'Remote City', 
+            region: d.region || 'Remote Region',
+            lat: d.latitude || 0, 
+            lon: d.longitude || 0, 
+            tz: d.timezone || 'UTC',
+            asn: d.asn || 'N/A', 
+            org: d.org || 'Internet Provider' 
+          };
+        } catch (e) {
+          console.error("Geo fallback failed", e);
+          ip = ip || '?.?.?.?';
+          geo = geo || { country: 'XX', country_name: 'Earth' };
+        }
       }
-      document.getElementById('ip').textContent = ip;
+
+      document.getElementById('ip').textContent = ip || '?.?.?.?';
       renderWidgets(geo);
       renderMap(geo);
     }
@@ -220,11 +235,12 @@
       else if (/Safari\//.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
       else if (/Firefox\//.test(ua))                      browser = 'Firefox';
 
-      const flag = g?.country
+      const flag = (g?.country && g.country !== 'unknown' && g.country !== 'XX' && g.country !== 'T1')
         ? String.fromCodePoint(...[...g.country.toUpperCase()].map(c => 0x1F1E6 - 65 + c.charCodeAt(0)))
         : '';
-      const countryLabel = flag && g?.country_name ? `${flag} ${g.country_name}`
-                         : flag ? `${flag} ${g.country}` : g?.country;
+      
+      let countryLabel = g?.country_name || 'Earth';
+      if (flag) countryLabel = `${flag} ${countryLabel}`;
 
       const geoFields = [
         ['country',  countryLabel],
