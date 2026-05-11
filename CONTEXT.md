@@ -2,28 +2,33 @@
 
 ## Purpose
 
-Show the visitor's public IP address. Inspired by ip.me — minimal, no extra services.
-Used across multiple domains (mx-ip.lechu.dev, es-ip.lechu.dev, etc.) to verify VPN exit nodes.
+Show the visitor's public IP address. Minimal, fast, and CLI-friendly.
+Used for verifying VPN exit nodes across multiple regional domains.
 
-## How the IP is resolved
+## Architecture
 
-Cloudflare injects `CF-Connecting-IP` on every request. The Pages Function middleware reads it
-and injects it as `var __CF_IP` into the HTML before it reaches the browser.
-Geo data comes from `request.cf` (Cloudflare's free geo enrichment — no external API needed in production).
+- **Server-side**: Cloudflare Pages Functions (`_middleware.js`) intercept requests.
+    - Resolve IP via `CF-Connecting-IP`.
+    - Resolve Geo via `request.cf`.
+    - Detect CLI clients (curl/wget) to serve text.
+    - Inject data into HTML via global variables (`__CF_IP`, `__CF_GEO`).
+- **Client-side**: Vanilla JS in `index.html`.
+    - Renders widgets and interactive map (Leaflet).
+    - Performs fallback GeoIP lookup if server data is generic.
+    - Manages dark/light theme persistence.
 
-In local dev (`wrangler pages dev`), `__CF_IP` is not set, so the page falls back to `ipapi.co/json/`.
+## Caching Strategy
 
-## Multi-domain VPN use
+The tool MUST show real-time data.
+- Global `_headers` set `no-store`.
+- Middleware reinforces `no-store` and `no-cache`.
+- `x-render-time` header provides proof of dynamic execution.
+- User may need to set a "Bypass Cache" rule in CF Dashboard if Edge Cache persists.
 
-The same repo is deployed to multiple Cloudflare Pages projects / custom domains:
-- `ip.lechu.dev` — default
-- `mx-ip.lechu.dev`, `es-ip.lechu.dev`, etc. — region-specific exit node checks
+## Status
 
-`Cache-Control: no-store` is set globally so the browser never serves a cached IP from a previous session.
-
-## Pending
-
-- Country full name in production (CF only provides ISO code, e.g. `DE`). Currently shown as `🇩🇪 DE`.
-  Fix: add ISO→name lookup table in the middleware or client-side.
-- curl-friendly endpoints (`/ip`, `/geo`) not yet implemented.
-- Cloudflare edge cache may still cache responses — needs `Cache-Control` verified at CF dashboard level.
+- [x] Full country names.
+- [x] Curl/CLI plain-text support.
+- [x] /ip and /geo endpoints.
+- [x] Hybrid GeoIP (Server + Client fallback).
+- [x] Cache-buster headers.
