@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ip.lechu.dev</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --fg: #00ff9f;
+      --fg2: #00ccff;
+      --dim: #1a1a2e;
+      --glow: 0 0 10px #00ff9f, 0 0 30px #00ff9f44;
+      --glow2: 0 0 8px #00ccff88;
+      --border: #00ff9f44;
+      --font: 'Courier New', monospace;
+    }
+    [data-theme="light"] {
+      --bg: #f0f4f0;
+      --fg: #007a3d;
+      --fg2: #005f8a;
+      --dim: #dce8dc;
+      --glow: 0 0 6px #007a3d66;
+      --glow2: 0 0 4px #005f8a44;
+      --border: #007a3d44;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: background .3s, color .3s;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+    }
+    .label {
+      font-size: .75rem;
+      letter-spacing: .3em;
+      color: var(--fg2);
+      text-shadow: var(--glow2);
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    .ip {
+      font-size: clamp(2rem, 8vw, 4.5rem);
+      font-weight: bold;
+      letter-spacing: .05em;
+      text-shadow: var(--glow);
+      border: 1px solid var(--border);
+      background: var(--dim);
+      padding: .6em 1.2em;
+      border-radius: 4px;
+      cursor: pointer;
+      user-select: all;
+      transition: text-shadow .2s;
+    }
+    .ip:hover { text-shadow: var(--glow), 0 0 60px var(--fg); }
+    .copy-hint {
+      font-size: .7rem;
+      color: var(--fg2);
+      margin-top: .6rem;
+      letter-spacing: .15em;
+      opacity: .6;
+      height: 1em;
+      transition: opacity .3s;
+    }
+    .toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-family: var(--font);
+      font-size: .75rem;
+      letter-spacing: .1em;
+      padding: .4em .8em;
+      cursor: pointer;
+      border-radius: 3px;
+      text-shadow: var(--glow2);
+      transition: all .2s;
+    }
+    .toggle:hover { background: var(--dim); }
+    footer {
+      position: fixed;
+      bottom: 1rem;
+      font-size: .65rem;
+      color: var(--fg2);
+      opacity: .4;
+      letter-spacing: .2em;
+    }
+  </style>
+</head>
+<body>
+  <button class="toggle" onclick="toggleTheme()" id="themeBtn">[ LIGHT ]</button>
+  <div class="container">
+    <div class="label">// your ip address</div>
+    <div class="ip" id="ip" onclick="copyIP()" title="click to copy">...</div>
+    <div class="copy-hint" id="hint">&nbsp;</div>
+  </div>
+  <footer>ip.lechu.dev</footer>
+  <script>
+    // IP is injected by the Cloudflare Worker as a global variable
+    // Falls back to a public API if running locally
+    function init() {
+      if (typeof __CF_IP !== 'undefined') {
+        document.getElementById('ip').textContent = __CF_IP;
+      } else {
+        fetch('https://api.ipify.org?format=json')
+          .then(r => r.json())
+          .then(d => document.getElementById('ip').textContent = d.ip)
+          .catch(() => document.getElementById('ip').textContent = '?.?.?.?');
+      }
+    }
+
+    function copyIP() {
+      const ip = document.getElementById('ip').textContent;
+      navigator.clipboard.writeText(ip).then(() => {
+        const hint = document.getElementById('hint');
+        hint.textContent = '// copied!';
+        hint.style.opacity = '1';
+        setTimeout(() => { hint.style.opacity = '.6'; hint.textContent = '\u00a0'; }, 1500);
+      });
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const dark = html.dataset.theme === 'dark';
+      html.dataset.theme = dark ? 'light' : 'dark';
+      document.getElementById('themeBtn').textContent = dark ? '[ DARK ]' : '[ LIGHT ]';
+      localStorage.setItem('theme', html.dataset.theme);
+    }
+
+    // Restore saved theme
+    const saved = localStorage.getItem('theme');
+    if (saved) {
+      document.documentElement.dataset.theme = saved;
+      document.getElementById('themeBtn').textContent = saved === 'dark' ? '[ LIGHT ]' : '[ DARK ]';
+    }
+
+    init();
+  </script>
+</body>
+</html>
